@@ -52,10 +52,22 @@ function buildAlertBlocks(event) {
       type: 'context',
       elements: [{ type: 'mrkdwn', text: `Please review and classify this alert.` }],
     },
+    ...(event.assigned_to
+      ? [{
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `🕵️ Assigned to <@${event.assigned_to}>` }],
+        }]
+      : []),
     {
       type: 'actions',
       block_id: 'security_event_actions',
       elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Assign to me' },
+          action_id: 'assign_to_me',
+          value: String(event.id),
+        },
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Cyber attack' },
@@ -157,6 +169,24 @@ internalApi.post('/internal/alert', async (req, res) => {
 });
 internalApi.listen(ALERT_PORT, '127.0.0.1', () => {
   console.log(`Internal alert receiver listening on http://127.0.0.1:${ALERT_PORT}/internal/alert`);
+});
+
+app.action('assign_to_me', async ({ ack, body, client }) => {
+  await ack();
+  const eventId = Number(body.actions[0].value);
+  const event = db.getEvent(eventId);
+  if (!event) return;
+
+  db.assignEvent(eventId, body.user.id);
+  const updated = db.getEvent(eventId); // now carries assigned_to
+
+  // Re-render the same alert (all buttons preserved) with the assignment context line added.
+  await client.chat.update({
+    channel: body.channel.id,
+    ts: body.message.ts,
+    text: `Alert assigned to <@${body.user.id}>`,
+    blocks: buildAlertBlocks(updated),
+  });
 });
 
 Object.keys(CLASSIFICATIONS).forEach((actionId) => {

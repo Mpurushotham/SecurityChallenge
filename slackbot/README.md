@@ -21,9 +21,14 @@ message, lets a human classify it, and persists the full lifecycle for later ana
   happened" to this bot. A 30-second debounce (keyed on origin+IP) collapses a burst of repeated
   attack requests into a single Slack alert.
 - **Interactive message**: on receiving an alert, the bot posts a Block Kit message to the
-  configured channel with the attack context and three buttons — *Cyber attack*,
-  *Infrastructure instability*, *False positive* — matching the PDF's example.
-- **Resolution**: clicking any button acknowledges the interaction, records the classification,
+  configured channel with the attack context and, first, an *Assign to me* button followed by three
+  classify buttons — *Cyber attack*, *Infrastructure instability*, *False positive* — matching the
+  PDF's example.
+- **Assignment**: clicking *Assign to me* records the responder as the owner
+  (`assigned_to` / `assigned_at`) and updates the message in place to add a
+  `🕵️ Assigned to <user>` line, while keeping all classify buttons usable — so a responder can
+  claim an alert before it's resolved.
+- **Resolution**: clicking any classify button acknowledges the interaction, records the classification,
   and uses `chat.update` to replace the original message in place with a compact, discreet
   line: `✅ <classification> · marked by <user> at <time>` — no more action buttons, matching the
   "resolved" screenshot in the PDF.

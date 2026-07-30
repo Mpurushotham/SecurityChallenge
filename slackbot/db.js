@@ -13,6 +13,8 @@ db.exec(`
     path TEXT,
     user_agent TEXT,
     detected_at TEXT NOT NULL,
+    assigned_to TEXT,
+    assigned_at TEXT,
     classified_by TEXT,
     classified_at TEXT,
     slack_channel TEXT,
@@ -20,6 +22,16 @@ db.exec(`
     raw_context TEXT
   )
 `);
+
+// Idempotent migration: add columns to pre-existing DBs; no-op if they already exist.
+function ensureColumn(table, column, type) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+ensureColumn('security_events', 'assigned_to', 'TEXT');
+ensureColumn('security_events', 'assigned_at', 'TEXT');
 
 function insertEvent(event) {
   const stmt = db.prepare(`
@@ -44,6 +56,11 @@ function setSlackMessageRef(id, channel, ts) {
     .run(channel, ts, id);
 }
 
+function assignEvent(id, assignedTo) {
+  db.prepare(`UPDATE security_events SET assigned_to = ?, assigned_at = ? WHERE id = ?`)
+    .run(assignedTo, new Date().toISOString(), id);
+}
+
 function classifyEvent(id, status, classifiedBy) {
   db.prepare(`
     UPDATE security_events
@@ -60,4 +77,4 @@ function findBySlackMessage(channel, ts) {
   return db.prepare(`SELECT * FROM security_events WHERE slack_channel = ? AND slack_ts = ?`).get(channel, ts);
 }
 
-module.exports = { insertEvent, setSlackMessageRef, classifyEvent, getEvent, findBySlackMessage };
+module.exports = { insertEvent, setSlackMessageRef, assignEvent, classifyEvent, getEvent, findBySlackMessage };
